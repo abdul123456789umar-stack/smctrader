@@ -1,0 +1,249 @@
+from flask import jsonify, request
+from ai_reasoner import AIReasoningEngine, ReinforcementLearner
+import pandas as pd
+from datetime import datetime
+
+# Initialize AI components
+ai_engine = AIReasoningEngine()
+rl_learner = ReinforcementLearner()
+
+def setup_ai_routes(app):
+    
+    @app.route('/api/ai-analyze/<symbol>')
+    def ai_analyze_symbol(symbol):
+        """Comprehensive AI analysis for a symbol"""
+        try:
+            timeframe = request.args.get('timeframe', '1h')
+            
+            # Get chart data and patterns (from previous phases)
+            chart_data = get_chart_data_from_db(symbol, timeframe, 100)
+            patterns = get_patterns_from_db(symbol, timeframe)
+            multi_tf_analysis = get_multi_timeframe_analysis(symbol)
+            
+            # Perform AI analysis
+            trade_signal = ai_engine.analyze_setup(
+                symbol, chart_data, patterns, multi_tf_analysis
+            )
+            
+            response = {
+                'symbol': symbol,
+                'analysis': {
+                    'signal': trade_signal.direction,
+                    'entry': trade_signal.entry_price,
+                    'stop_loss': trade_signal.stop_loss,
+                    'take_profit': trade_signal.take_profit,
+                    'confidence': trade_signal.confidence,
+                    'reasoning': trade_signal.reasoning,
+                    'r_r_ratio': trade_signal.r_r_ratio,
+                    'timestamp': trade_signal.timestamp.isoformat()
+                },
+                'market_regime': ai_engine.detect_current_regime(),
+                'ai_insights': generate_ai_insights(trade_signal, patterns)
+            }
+            
+            return jsonify(response)
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.route('/api/ai-signals')
+    def get_ai_signals():
+        """Get AI-generated trading signals for all instruments"""
+        instruments = [
+            'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD',
+            'BTC/USDT', 'ETH/USDT', 'XAU/USD', 'XAG/USD'
+        ]
+        
+        signals = []
+        
+        for symbol in instruments:
+            try:
+                # Get AI analysis for each symbol
+                chart_data = get_chart_data_from_db(symbol, '1h', 100)
+                patterns = get_patterns_from_db(symbol, '1h')
+                multi_tf_analysis = get_multi_timeframe_analysis(symbol)
+                
+                signal = ai_engine.analyze_setup(
+                    symbol, chart_data, patterns, multi_tf_analysis
+                )
+                
+                # Only include signals with confidence > 60%
+                if signal.confidence > 0.6:
+                    signals.append({
+                        'symbol': signal.symbol,
+                        'direction': signal.direction,
+                        'entry': signal.entry_price,
+                        'stop_loss': signal.stop_loss,
+                        'take_profit': signal.take_profit,
+                        'confidence': signal.confidence,
+                        'r_r_ratio': signal.r_r_ratio,
+                        'reasoning': signal.reasoning,
+                        'timestamp': signal.timestamp.isoformat()
+                    })
+                    
+            except Exception as e:
+                print(f"Error analyzing {symbol}: {e}")
+                continue
+        
+        # Sort by confidence and return top 3
+        signals.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        return jsonify({
+            'signals': signals[:3],
+            'total_analyzed': len(instruments),
+            'high_confidence_signals': len([s for s in signals if s['confidence'] > 0.8]),
+            'timestamp': datetime.now().isoformat()
+        })
+    
+    @app.route('/api/ai-learn', methods=['POST'])
+    def record_trade_outcome():
+        """Record trade outcome for AI learning"""
+        try:
+            data = request.json
+            symbol = data.get('symbol')
+            outcome = data.get('outcome')  # 'WIN', 'LOSS', 'BREAKEVEN'
+            performance = data.get('performance', {})
+            setup_conditions = data.get('setup_conditions', {})
+            
+            # Get the original signal for learning
+            original_signal = TradeSignal(
+                symbol=symbol,
+                direction=setup_conditions.get('direction'),
+                entry_price=setup_conditions.get('entry_price'),
+                stop_loss=setup_conditions.get('stop_loss'),
+                take_profit=setup_conditions.get('take_profit', []),
+                confidence=setup_conditions.get('confidence', 0.5),
+                reasoning=setup_conditions.get('reasoning', []),
+                timestamp=datetime.fromisoformat(setup_conditions.get('timestamp')),
+                timeframe=setup_conditions.get('timeframe', '1h'),
+                r_r_ratio=setup_conditions.get('r_r_ratio', 1.0)
+            )
+            
+            # Learn from this trade
+            ai_engine.learn_from_trade(original_signal, outcome, performance)
+            
+            # Update reinforcement learner
+            update_reinforcement_learner(original_signal, outcome, performance)
+            
+            return jsonify({
+                "status": "success",
+                "message": "Learning completed",
+                "samples_in_memory": len(ai_engine.learning_memory)
+            })
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.route('/api/ai-performance')
+    def get_ai_performance():
+        """Get AI performance metrics"""
+        performance = calculate_ai_performance()
+        
+        return jsonify({
+            "performance_metrics": performance,
+            "learning_progress": {
+                "total_trades_learned": len(ai_engine.learning_memory),
+                "current_win_rate": performance.get('win_rate', 0),
+                "model_status": "TRAINED" if ai_engine.is_trained else "TRAINING"
+            }
+        })
+    
+    def get_chart_data_from_db(symbol, timeframe, limit):
+        """Mock function to get chart data from database"""
+        # This would query your database
+        # Using mock data for demonstration
+        return generate_mock_price_data(symbol, timeframe, limit)
+    
+    def get_patterns_from_db(symbol, timeframe):
+        """Mock function to get patterns from database"""
+        # This would query your pattern database
+        # Using mock data for demonstration
+        from smc_patterns import SMCPatternDetector
+        detector = SMCPatternDetector()
+        df = pd.DataFrame(generate_mock_price_data(symbol, timeframe, 100))
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df.set_index('timestamp', inplace=True)
+        return detector.detect_all_patterns(df, symbol, timeframe)
+    
+    def get_multi_timeframe_analysis(symbol):
+        """Mock function to get multi-timeframe analysis"""
+        # This would query your multi-timeframe analysis
+        return {
+            "composite_bias": "bullish",
+            "multi_timeframe_analysis": {
+                "1h": {"bias": "bullish", "confidence": 75, "patterns_count": 5},
+                "4h": {"bias": "bullish", "confidence": 80, "patterns_count": 7},
+                "1d": {"bias": "neutral", "confidence": 60, "patterns_count": 3}
+            }
+        }
+    
+    def generate_ai_insights(trade_signal, patterns):
+        """Generate advanced AI insights"""
+        insights = []
+        
+        # Confidence-based insights
+        if trade_signal.confidence > 0.8:
+            insights.append("🚀 HIGH CONFIDENCE: Strong pattern alignment and multi-timeframe confluence")
+        elif trade_signal.confidence > 0.6:
+            insights.append("✅ MODERATE CONFIDENCE: Good setup with clear risk-reward")
+        else:
+            insights.append("⚠️  LOW CONFIDENCE: Awaiting better confirmation or pattern development")
+        
+        # Risk-reward insights
+        if trade_signal.r_r_ratio > 2.0:
+            insights.append("💎 EXCELLENT RISK-REWARD: Favorable risk management parameters")
+        elif trade_signal.r_r_ratio > 1.5:
+            insights.append("📊 GOOD RISK-REWARD: Solid risk management setup")
+        
+        # Pattern insights
+        if patterns.get('order_blocks'):
+            recent_ob = patterns['order_blocks'][-1]
+            insights.append(f"🎯 Key {recent_ob.direction} Order Block identified at recent price action")
+        
+        if patterns.get('break_of_structure'):
+            recent_bos = patterns['break_of_structure'][-1]
+            if recent_bos.confirmed:
+                insights.append(f"📈 Confirmed {recent_bos.direction.upper()} Break of Structure - trend continuation likely")
+        
+        return insights
+    
+    def update_reinforcement_learner(signal, outcome, performance):
+        """Update reinforcement learning model"""
+        # Convert signal to state features
+        features = ai_engine.extract_features(
+            get_chart_data_from_db(signal.symbol, signal.timeframe, 100),
+            get_patterns_from_db(signal.symbol, signal.timeframe)
+        )
+        
+        state_key = rl_learner.get_state_key(features)
+        reward = rl_learner.calculate_reward(outcome, performance)
+        
+        # For next state, we'd need the state after the trade
+        # Using current state as placeholder
+        next_state_key = state_key
+        
+        rl_learner.update_q_value(state_key, signal.direction, reward, next_state_key)
+    
+    def calculate_ai_performance():
+        """Calculate AI performance metrics"""
+        if not ai_engine.learning_memory:
+            return {
+                "win_rate": 0,
+                "avg_rr": 0,
+                "total_trades": 0,
+                "learning_progress": 0
+            }
+        
+        wins = sum(1 for memory in ai_engine.learning_memory if memory.trade_outcome == 'WIN')
+        total = len(ai_engine.learning_memory)
+        win_rate = wins / total if total > 0 else 0
+        
+        # Calculate average risk-reward (simplified)
+        avg_rr = 1.8  # This would be calculated from actual trade data
+        
+        return {
+            "win_rate": round(win_rate, 3),
+            "avg_rr": round(avg_rr, 2),
+            "total_trades": total,
+            "learning_progress": min(total / 100, 1.0)  # Progress towards 100 samples
+        }

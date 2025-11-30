@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: babs-ai-trading
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEPLOYMENT_PLATFORM
+        value: render
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # Add your API keys in Render dashboard:
+      # - OPENAI_KEY
+      # - OPENROUTER_KEY
+      # - BYTZE_KEY
+      # - ALPHA_VANTAGE_KEY
+      # - GOOGLE_GENAI_KEY
+      # - PREMIUM_INVITES (comma-separated emails)
+      # - FRONTEND_URL (your Vercel frontend URL)
