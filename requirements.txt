@@ -54,7 +54,7 @@ tqdm==4.66.1
 tenacity==8.2.3
 
 # Telegram notifications (optional)
-python-telegram-bot==20.7
+python-telegram-bot>=22.0
 
 # Charting
 matplotlib==3.8.2

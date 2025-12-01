@@ -14,7 +14,9 @@ from flask_cors import CORS
 class Config:
     """Application configuration from environment variables"""
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_very_secret_key_that_should_be_changed')
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///babs_trader.db')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    if not SQLALCHEMY_DATABASE_URI:
+        raise ValueError("DATABASE_URL environment variable not set. This is required for Render deployment.")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # AI API Keys
@@ -33,7 +35,7 @@ class Config:
 
 
 # Initialize Flask app
-app = Flask(__name__, static_folder='frontend', template_folder='frontend')
+app = Flask(__name__)
 app.config.from_object(Config)
 
 # Enable CORS for frontend on different domain (Vercel)
@@ -209,11 +211,7 @@ def setup_routes():
         print(f"Warning: Could not import deployment_routes: {e}")
 
 
-# Serve static files (CSS, JS, images) from the 'frontend' folder
-@app.route('/static/<path:filename>')
-def serve_static(filename):
-    """Serve static files"""
-    return send_from_directory(app.static_folder, filename)
+
 
 
 # Initialize application

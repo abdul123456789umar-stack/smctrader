@@ -14,8 +14,7 @@ services:
         value: render
       - key: SECRET_KEY
         generateValue: true
-      - key: PYTHON_VERSION
-        value: 3.11.0
+
       # Add your API keys in Render dashboard:
       # - OPENAI_KEY
       # - OPENROUTER_KEY
