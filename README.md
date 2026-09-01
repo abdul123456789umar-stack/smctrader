@@ -111,3 +111,8 @@ python app.py
 ## 📄 License
 
 MIT License
+
+## Ownership
+
+- **Owner:** Abdulkadir umar
+- **Hugging Face:** [MR-CODESPIKE](https://huggingface.co/MR-CODESPIKE)
